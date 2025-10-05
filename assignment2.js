@@ -80,7 +80,7 @@ window.loadImageFile = function(event)
 					heightmapData.height: height of the map (number of rows)
 			*/
 			console.log('loaded image: ' + heightmapData.width + ' x ' + heightmapData.height);
-
+            convertImageData();
 		};
 		img.onerror = function() 
 		{
@@ -94,6 +94,55 @@ window.loadImageFile = function(event)
 	reader.readAsDataURL(f);
 }
 
+function convertImageData(){
+    var mapSize = 10;
+    var d = heightmapData.data;
+    // size of one square
+    var s = mapSize / heightmapData.width;
+    // number of rows
+    var r = heightmapData.width;
+    
+    vertexCount = heightmapData.width * heightmapData.height * 6;
+    var map = [];
+    for (var i=0; i < heightmapData.height; i++){
+        for (var j=0; j < heightmapData.width; j++){
+            var x = mapSize*((j - heightmapData.width/2)/heightmapData.width);
+            var y = mapSize*((i - heightmapData.height/2)/heightmapData.height);
+            var z1 = d[i*r+j];      //   z1 -- z2 
+            var z2 = d[i*r+j+1];    //   |      |
+            var z3 = d[(i+1)*r+j];  //   |      |
+            var z4 = d[(i+1)*r+j+1];//   z3 -- z4
+            var triangle1 = [
+                x, z1, y,
+                x+s, z2, y,
+                x, z3, y+s
+            ];
+            map.push(...triangle1);
+            
+            var triangle2 = [
+                x+s, z2, y,
+                x+s, z4, y+s,
+                x, z3, y+s
+            ];
+            map.push(...triangle2);
+        }
+    }
+    
+    var mapVertices = new Float32Array(map);
+    var posBuffer = createBuffer(gl, gl.ARRAY_BUFFER, mapVertices);
+    
+    var posAttribLoc = gl.getAttribLocation(program, "position");
+    vao = createVAO(gl, 
+		// positions
+		posAttribLoc, posBuffer, 
+
+		// normals (unused in this assignments)
+		null, null, 
+
+		// colors (not needed--computed by shader)
+		null, null
+	);
+}
 
 function setupViewMatrix(eye, target)
 {
