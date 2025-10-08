@@ -9,6 +9,12 @@ var uniformModelViewLoc = null;
 var uniformProjectionLoc = null;
 var heightmapData = null;
 
+var xzRotate = 0;
+var lastxzRotate = 0;
+var yzRotate = 0;
+var lastyzRotate = 0;
+var zoom = 2;
+
 function processImage(img)
 {
 	// draw the image into an off-screen canvas
@@ -171,7 +177,17 @@ function draw()
 		nearClip,
 		farClip,
 	);
-
+	
+	if (document.getElementById("projection").checked){
+	    //projection size
+	    var pSize = 100;
+	    projectionMatrix = orthographicMatrix(-gl.canvas.width/pSize,
+	        gl.canvas.width/pSize,
+	        -gl.canvas.height/pSize,
+	        gl.canvas.height/pSize,
+	        -pSize,
+	        pSize);
+	}
 	// eye and target
 	var eye = [0, 5, 5];
 	var target = [0, 0, 0];
@@ -179,6 +195,9 @@ function draw()
 	var modelMatrix = identityMatrix();
 
 	// TODO: set up transformations to the model
+	modelMatrix = multiplyMatrices(modelMatrix,rotateXMatrix(-yzRotate * Math.PI / 180));
+	modelMatrix = multiplyMatrices(modelMatrix,rotateYMatrix(-xzRotate * Math.PI / 180));
+	modelMatrix = multiplyMatrices(modelMatrix,scaleMatrix(zoom,zoom*(1+document.getElementById("height").value/10),zoom));
 
 	// setup viewing matrix
 	var eyeToTarget = subtract(target, eye);
@@ -293,6 +312,8 @@ function addMouseCallback(canvas)
 		isDragging = true;
 		startX = e.offsetX;
 		startY = e.offsetY;
+		lastxzRotate = xzRotate;
+        lastyzRotate = yzRotate;
 	});
 
 	canvas.addEventListener("contextmenu", function(e)  {
@@ -311,6 +332,7 @@ function addMouseCallback(canvas)
 			console.log("Scrolled down");
 			// e.g., zoom out
 		}
+		zoom -= e.deltaY/1000;
 	});
 
 	document.addEventListener("mousemove", function (e) {
@@ -321,8 +343,10 @@ function addMouseCallback(canvas)
 		var deltaX = currentX - startX;
 		var deltaY = currentY - startY;
 		console.log('mouse drag by: ' + deltaX + ', ' + deltaY);
-
+		
 		// implement dragging logic
+		xzRotate = lastxzRotate + deltaX;
+		yzRotate = lastyzRotate + deltaY;
 	});
 
 	document.addEventListener("mouseup", function () {
