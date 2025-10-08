@@ -9,6 +9,12 @@ var uniformModelViewLoc = null;
 var uniformProjectionLoc = null;
 var heightmapData = null;
 
+var xzRotate = 0;
+var lastxzRotate = 0;
+var yzRotate = 0;
+var lastyzRotate = 0;
+var zoom = 2;
+
 function processImage(img)
 {
 	// draw the image into an off-screen canvas
@@ -80,7 +86,7 @@ window.loadImageFile = function(event)
 					heightmapData.height: height of the map (number of rows)
 			*/
 			console.log('loaded image: ' + heightmapData.width + ' x ' + heightmapData.height);
-
+            convertImageData();
 		};
 		img.onerror = function() 
 		{
@@ -94,6 +100,55 @@ window.loadImageFile = function(event)
 	reader.readAsDataURL(f);
 }
 
+function convertImageData(){
+    var mapSize = 10;
+    var d = heightmapData.data;
+    // size of one square
+    var s = mapSize / heightmapData.width;
+    // number of rows
+    var r = heightmapData.width;
+    
+    vertexCount = heightmapData.width * heightmapData.height * 6;
+    var map = [];
+    for (var i=0; i < heightmapData.height; i++){
+        for (var j=0; j < heightmapData.width; j++){
+            var x = mapSize*((j - heightmapData.width/2)/heightmapData.width);
+            var y = mapSize*((i - heightmapData.height/2)/heightmapData.height);
+            var z1 = d[i*r+j];      //   z1 -- z2 
+            var z2 = d[i*r+j+1];    //   |      |
+            var z3 = d[(i+1)*r+j];  //   |      |
+            var z4 = d[(i+1)*r+j+1];//   z3 -- z4
+            var triangle1 = [
+                x, z1, y,
+                x+s, z2, y,
+                x, z3, y+s
+            ];
+            map.push(...triangle1);
+            
+            var triangle2 = [
+                x+s, z2, y,
+                x+s, z4, y+s,
+                x, z3, y+s
+            ];
+            map.push(...triangle2);
+        }
+    }
+    
+    var mapVertices = new Float32Array(map);
+    var posBuffer = createBuffer(gl, gl.ARRAY_BUFFER, mapVertices);
+    
+    var posAttribLoc = gl.getAttribLocation(program, "position");
+    vao = createVAO(gl, 
+		// positions
+		posAttribLoc, posBuffer, 
+
+		// normals (unused in this assignments)
+		null, null, 
+
+		// colors (not needed--computed by shader)
+		null, null
+	);
+}
 
 function setupViewMatrix(eye, target)
 {
@@ -122,7 +177,17 @@ function draw()
 		nearClip,
 		farClip,
 	);
-
+	
+	if (document.getElementById("projection").checked){
+	    //projection size
+	    var pSize = 100;
+	    projectionMatrix = orthographicMatrix(-gl.canvas.width/pSize,
+	        gl.canvas.width/pSize,
+	        -gl.canvas.height/pSize,
+	        gl.canvas.height/pSize,
+	        -pSize,
+	        pSize);
+	}
 	// eye and target
 	var eye = [0, 5, 5];
 	var target = [0, 0, 0];
@@ -130,6 +195,9 @@ function draw()
 	var modelMatrix = identityMatrix();
 
 	// TODO: set up transformations to the model
+	modelMatrix = multiplyMatrices(modelMatrix,rotateXMatrix(-yzRotate * Math.PI / 180));
+	modelMatrix = multiplyMatrices(modelMatrix,rotateYMatrix(-xzRotate * Math.PI / 180));
+	modelMatrix = multiplyMatrices(modelMatrix,scaleMatrix(zoom,zoom*(1+document.getElementById("height").value/10),zoom));
 
 	// setup viewing matrix
 	var eyeToTarget = subtract(target, eye);
@@ -244,6 +312,8 @@ function addMouseCallback(canvas)
 		isDragging = true;
 		startX = e.offsetX;
 		startY = e.offsetY;
+		lastxzRotate = xzRotate;
+        lastyzRotate = yzRotate;
 	});
 
 	canvas.addEventListener("contextmenu", function(e)  {
@@ -262,6 +332,7 @@ function addMouseCallback(canvas)
 			console.log("Scrolled down");
 			// e.g., zoom out
 		}
+		zoom -= e.deltaY/1000;
 	});
 
 	document.addEventListener("mousemove", function (e) {
@@ -272,8 +343,10 @@ function addMouseCallback(canvas)
 		var deltaX = currentX - startX;
 		var deltaY = currentY - startY;
 		console.log('mouse drag by: ' + deltaX + ', ' + deltaY);
-
+		
 		// implement dragging logic
+		xzRotate = lastxzRotate + deltaX;
+		yzRotate = lastyzRotate + deltaY;
 	});
 
 	document.addEventListener("mouseup", function () {
